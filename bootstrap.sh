@@ -39,7 +39,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-UPSTREAM = "https://api-oc.xiaomimimo.com"
+UPSTREAM = "https://api-sgp-oc.xiaomimimo.com"
 KEY_ENV = "MIMO_API_KEY"
 MAX_CONCURRENCY = 4
 CONNECT_TIMEOUT = 10.0
