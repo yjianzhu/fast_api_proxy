@@ -82,8 +82,14 @@ async def healthz() -> JSONResponse:
     return JSONResponse({"status": "ok", "key_len": len(key)})
 
 
-@app.api_route("/v1/{path:path}", methods=["GET", "POST", "OPTIONS"])
-async def proxy(path: str, request: Request):
+ALLOWED_PREFIXES = {"v1", "anthropic"}
+
+
+@app.api_route("/{prefix}/{path:path}", methods=["GET", "POST", "OPTIONS"])
+async def proxy(prefix: str, path: str, request: Request):
+    if prefix not in ALLOWED_PREFIXES:
+        raise HTTPException(404, "Not Found")
+
     key = os.environ.get(KEY_ENV)
     if not key:
         raise HTTPException(503, "MIMO_API_KEY not set in env")
@@ -113,7 +119,7 @@ async def proxy(path: str, request: Request):
         )
         req = client.build_request(
             request.method,
-            f"{UPSTREAM}/v1/{path}",
+            f"{UPSTREAM}/{prefix}/{path}",
             headers=upstream_headers,
             content=body,
         )
