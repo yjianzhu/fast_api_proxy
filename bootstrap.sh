@@ -8,6 +8,10 @@ if [ -z "$TUNNEL_TOKEN" ]; then
   exit 1
 fi
 HOSTNAME='mimo.yjianzhu.us.ci'
+PROXY_KEY_ENV='MIMO_PROXY_KEY'
+MIMO_PROXY_KEY='sk-2d3ee225988de22acc49176733e4276d540cff16eeae33e561c1375f9737f86b'
+export MIMO_PROXY_KEY
+log "proxy access key env: $PROXY_KEY_ENV"
 
 log "install cloudflared via apt repo"
 if ! command -v cloudflared >/dev/null 2>&1; then
@@ -32,6 +36,7 @@ cat > /tmp/proxy.py <<'PYEOF'
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import os
 
@@ -41,6 +46,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 UPSTREAM = "https://api-sgp-oc.xiaomimimo.com"
 KEY_ENV = "MIMO_API_KEY"
+PROXY_KEY_ENV = "MIMO_PROXY_KEY"
 MAX_CONCURRENCY = 4
 CONNECT_TIMEOUT = 10.0
 READ_TIMEOUT = 600.0
@@ -85,10 +91,23 @@ async def healthz() -> JSONResponse:
 ALLOWED_PREFIXES = {"v1", "anthropic"}
 
 
+def _require_proxy_key(request: Request) -> None:
+    proxy_key = os.environ.get(PROXY_KEY_ENV)
+    if not proxy_key:
+        raise HTTPException(503, "MIMO_PROXY_KEY not set in env")
+
+    auth = request.headers.get("authorization", "")
+    scheme, _, token = auth.partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token, proxy_key):
+        raise HTTPException(401, "Invalid proxy key")
+
+
 @app.api_route("/{prefix}/{path:path}", methods=["GET", "POST", "OPTIONS"])
 async def proxy(prefix: str, path: str, request: Request):
     if prefix not in ALLOWED_PREFIXES:
         raise HTTPException(404, "Not Found")
+
+    _require_proxy_key(request)
 
     key = os.environ.get(KEY_ENV)
     if not key:
