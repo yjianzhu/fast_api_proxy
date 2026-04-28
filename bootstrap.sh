@@ -91,14 +91,18 @@ async def healthz() -> JSONResponse:
 ALLOWED_PREFIXES = {"v1", "anthropic"}
 
 
-def _require_proxy_key(request: Request) -> None:
+def _require_proxy_key(request: Request, prefix: str) -> None:
     proxy_key = os.environ.get(PROXY_KEY_ENV)
     if not proxy_key:
         raise HTTPException(503, "MIMO_PROXY_KEY not set in env")
 
     auth = request.headers.get("authorization", "")
     scheme, _, token = auth.partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token, proxy_key):
+    bearer_ok = scheme.lower() == "bearer" and hmac.compare_digest(token, proxy_key)
+    x_api_key_ok = prefix == "anthropic" and hmac.compare_digest(
+        request.headers.get("x-api-key", ""), proxy_key
+    )
+    if not bearer_ok and not x_api_key_ok:
         raise HTTPException(401, "Invalid proxy key")
 
 
@@ -107,7 +111,7 @@ async def proxy(prefix: str, path: str, request: Request):
     if prefix not in ALLOWED_PREFIXES:
         raise HTTPException(404, "Not Found")
 
-    _require_proxy_key(request)
+    _require_proxy_key(request, prefix)
 
     key = os.environ.get(KEY_ENV)
     if not key:
@@ -131,6 +135,11 @@ async def proxy(prefix: str, path: str, request: Request):
         "Accept": request.headers.get("accept", "*/*"),
         "User-Agent": request.headers.get("user-agent", "mimo-proxy/1.0"),
     }
+    if prefix == "anthropic":
+        for header in ("anthropic-version", "anthropic-beta"):
+            value = request.headers.get(header)
+            if value:
+                upstream_headers[header] = value
 
     async with sem:
         client = httpx.AsyncClient(
