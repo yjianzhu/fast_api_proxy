@@ -9,7 +9,7 @@ if [ -z "$TUNNEL_TOKEN" ]; then
 fi
 HOSTNAME='mimo.yjianzhu.us.ci'
 PROXY_KEY_ENV='MIMO_PROXY_KEY'
-MIMO_PROXY_KEY='sk-2d3ee225988de22acc49176733e4276d540cff16eeae33e561c1375f9737f86b'
+MIMO_PROXY_KEY='sk-yjianzhuustc_proxykey'
 export MIMO_PROXY_KEY
 log "proxy access key env: $PROXY_KEY_ENV"
 
